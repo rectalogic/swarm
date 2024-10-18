@@ -1,5 +1,6 @@
 import inspect
 from datetime import datetime
+from typing import Annotated, Any, get_args, get_origin
 
 
 def debug_print(debug: bool, *args: str) -> None:
@@ -42,11 +43,17 @@ def function_to_json(func) -> dict:
     """
     type_map = {
         str: "string",
+        str | None: "string",
         int: "integer",
+        int | None: "integer",
         float: "number",
+        float | None: "number",
         bool: "boolean",
+        bool | None: "boolean",
         list: "array",
+        list | None: "array",
         dict: "object",
+        dict | None: "object",
         type(None): "null",
     }
 
@@ -59,18 +66,37 @@ def function_to_json(func) -> dict:
 
     parameters = {}
     for param in signature.parameters.values():
-        try:
-            param_type = type_map.get(param.annotation, "string")
-        except KeyError as e:
-            raise KeyError(
-                f"Unknown type annotation {param.annotation} for parameter {param.name}: {str(e)}"
+        parameters[param.name] = {}
+        annotation = param.annotation
+        param_type: str | None = None
+        if annotation is inspect.Parameter.empty:
+            param_type = "string"
+        else:
+            if get_origin(annotation) is Annotated:
+                if len(annotation.__metadata__) == 1 and isinstance(
+                    annotation.__metadata__[0], str
+                ):
+                    parameters[param.name]["description"] = annotation.__metadata__[0]
+                    annotation = annotation.__origin__
+            param_type = type_map.get(get_origin(annotation)) or type_map.get(
+                annotation
             )
-        parameters[param.name] = {"type": param_type}
+            if param_type == "array":
+                args = get_args(annotation)
+                if args:
+                    if len(args) == 1 and (arg := type_map.get(args[0])):
+                        parameters[param.name]["items"] = {"type": arg}
+                    else:
+                        raise TypeError(f"Parameter type {annotation} not supported")
+            elif param_type is None:
+                param_type = "string"
+
+        parameters[param.name]["type"] = param_type
 
     required = [
         param.name
         for param in signature.parameters.values()
-        if param.default == inspect._empty
+        if param.default == inspect.Parameter.empty
     ]
 
     return {
@@ -82,6 +108,7 @@ def function_to_json(func) -> dict:
                 "type": "object",
                 "properties": parameters,
                 "required": required,
+                "additionalProperties": False,
             },
         },
     }

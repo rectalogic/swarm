@@ -287,16 +287,15 @@ Swarm automatically converts functions into a JSON Schema that is passed into Ch
 - Docstrings are turned into the function `description`.
 - Parameters without default values are set to `required`.
 - Type hints are mapped to the parameter's `type` (and default to `string`).
-- Per-parameter descriptions are not explicitly supported, but should work similarly if just added in the docstring. (In the future docstring argument parsing may be added.)
+- Per-parameter descriptions are supported via [`typing.Annotated`](https://docs.python.org/3.10/library/typing.html#typing.Annotated),
+  or can be added in the docstring.
 
 ```python
-def greet(name, age: int, location: str = "New York"):
+def greet(name, age: Annotated[int, "Age of the user"], location: Annotated[str, "Best place on earth"] = "New York"):
    """Greets the user. Make sure to get their name and age before calling.
 
    Args:
       name: Name of the user.
-      age: Age of the user.
-      location: Best place on earth.
    """
    print(f"Hello {name}, glad you are {age} in {location}!")
 ```
@@ -306,15 +305,22 @@ def greet(name, age: int, location: str = "New York"):
    "type": "function",
    "function": {
       "name": "greet",
-      "description": "Greets the user. Make sure to get their name and age before calling.\n\nArgs:\n   name: Name of the user.\n   age: Age of the user.\n   location: Best place on earth.",
+      "description": "Greets the user. Make sure to get their name and age before calling.\n\n        Args:\n            name: Name of the user.\n        ",
       "parameters": {
          "type": "object",
          "properties": {
             "name": {"type": "string"},
-            "age": {"type": "integer"},
-            "location": {"type": "string"}
+            "age": {
+               "description": "Age of the user",
+               "type": "integer"
+            },
+            "location": {
+               "description": "Best place on earth",
+               "type": "string"
+            }
          },
-         "required": ["name", "age"]
+         "required": ["name", "age"],
+         "additionalProperties": false
       }
    }
 }
